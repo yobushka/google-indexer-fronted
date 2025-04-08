@@ -1,45 +1,73 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Google Indexing API – Отправка URL</title>
+  <title>Google Indexing API – URL Submission</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+  <!-- Optionally add Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.23/jsrsasign-all-min.js"></script>
 </head>
 <body>
   <div class="container">
     <section class="section">
-      <h2 class="title is-4">Google Indexing API – Отправка URL</h2>
+      <h2 class="title is-4">Google Indexing API – URL Submission</h2>
       <form id="indexing-form">
         <div class="field">
-          <label class="label">Загрузите файл service-account.json:</label>
+          <label class="label">
+            Upload the service-account.json file:
+            <span class="icon has-tooltip-multiline" data-tooltip="Instructions: Obtain service-account.json from the Google Cloud Console. Go to the Credentials section, select or create a Service Account, and download the JSON file.">
+              <i class="fas fa-info-circle"></i>
+            </span>
+          </label>
           <div class="control">
             <input type="file" id="service-account" accept=".json" class="input" required>
+            <span id="file-status"></span> <!-- File status -->
           </div>
         </div>
         <div class="field">
-          <label class="label">Введите список URL (по одному на строке):</label>
+          <label class="label">Enter a list of URLs (one per line):</label>
           <div class="control">
             <textarea id="urls" class="textarea"></textarea>
           </div>
         </div>
         <div class="field">
           <div class="control">
-            <input type="submit" value="Отправить в Indexing API" class="button is-primary">
+            <input type="submit" value="Submit to Indexing API" class="button is-primary">
           </div>
         </div>
       </form>
-      <h3 class="title is-5">Результаты отправки:</h3>
+      <h3 class="title is-5">Submission Results:</h3>
       <pre id="results" class="box"></pre>
       <script>
       $(document).ready(function(){
+        // Validate service-account file on selection
+        $("#service-account").on('change', function() {
+          var file = this.files[0];
+          $("#file-status").empty();
+          if(!file) return;
+          var reader = new FileReader();
+          reader.onload = function(evt) {
+            try {
+              var creds = JSON.parse(evt.target.result);
+              if(creds.client_email && creds.private_key) {
+                $("#file-status").html('<span class="tag is-success">Valid file</span>');
+              } else {
+                $("#file-status").html('<span class="tag is-danger">Invalid file</span>');
+              }
+            } catch(e) {
+              $("#file-status").html('<span class="tag is-danger">Invalid file</span>');
+            }
+          };
+          reader.readAsText(file);
+        });
         $('#indexing-form').on('submit', function(e){
           e.preventDefault();
-          $('#results').text('Обработка...');
+          $('#results').text('Processing...');
           var file = $('#service-account')[0].files[0];
           if(!file) {
-            $('#results').text('Пожалуйста, загрузите service-account.json');
+            $('#results').text('Please upload service-account.json');
             return;
           }
           
@@ -49,12 +77,17 @@
             try {
               creds = JSON.parse(evt.target.result);
             } catch(err){
-              $('#results').text('Ошибка чтения учетных данных.');
+              $('#results').text('Error reading credentials.');
+              return;
+            }
+            // Validate required keys in the service-account file
+            if(!creds.client_email || !creds.private_key) {
+              $('#results').text('Invalid format for service-account.json. The file must contain client_email and private_key.');
               return;
             }
             var urls = $('#urls').val().split("\n").map(function(u){ return $.trim(u); }).filter(function(u){ return u; });
             if(urls.length === 0){
-              $('#results').text('Пожалуйста, введите хотя бы один URL.');
+              $('#results').text('Please enter at least one URL.');
               return;
             }
             var now = Math.floor(Date.now()/1000);
@@ -72,11 +105,11 @@
             try {
               jwt = KJUR.jws.JWS.sign("RS256", sHeader, sClaim, creds.private_key);
             } catch(e) {
-              $('#results').text('Ошибка генерации JWT: ' + e);
+              $('#results').text('JWT generation error: ' + e);
               return;
             }
             
-            // Получаем access token
+            // Fetch access token
             $.ajax({
               url: 'https://oauth2.googleapis.com/token',
               method: 'POST',
@@ -86,7 +119,7 @@
               },
               success: function(tokenData){
                 if(!tokenData.access_token){
-                  $('#results').text('Ошибка: не удалось получить access token.');
+                  $('#results').text('Error: unable to obtain access token.');
                   return;
                 }
                 var token = tokenData.access_token;
@@ -105,9 +138,9 @@
                       headers: { "Authorization": "Bearer " + token },
                       data: payload
                     }).then(function(response){
-                      resultsText += url + " → " + (response.notifyTime || "Успешно") + "\n";
+                      resultsText += url + " → " + (response.notifyTime || "Success") + "\n";
                     }, function(jqXHR){
-                      var errMsg = "Ошибка";
+                      var errMsg = "Error";
                       try {
                         var resp = JSON.parse(jqXHR.responseText);
                         if(resp && resp.error && resp.error.message){
@@ -123,7 +156,7 @@
                 });
               },
               error: function(jqXHR){
-                var errMsg = "Ошибка при запросе access token";
+                var errMsg = "Error fetching access token";
                 try {
                   var resp = JSON.parse(jqXHR.responseText);
                   if(resp && resp.error && resp.error.message) {
