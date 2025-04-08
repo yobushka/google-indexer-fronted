@@ -62,10 +62,14 @@
       </div>
       <!-- Новый блок для списка доменов -->
       <h3 class="title is-5">Available Domains:</h3>
-      <pre id="domains" class="box" style="display: none;"></pre>
+      <div>
+        <button id="check-domains-button" type="button">Check Domains</button>
+        <pre id="domains" class="box" style="display: none;"></pre>
+      </div>
       <script>
       $(document).ready(function(){
         var currentJwt = null;
+        var currentAccessToken = null;
         
         // Обработчик переключения отображения JWT токена
         $("#toggle-jwt").on("click", function(){
@@ -134,7 +138,7 @@
             var header = { alg: "RS256", typ: "JWT" };
             var claim = {
               iss: creds.client_email,
-              scope: "https://www.googleapis.com/auth/indexing",
+              scope: "https://www.googleapis.com/auth/indexing https://www.googleapis.com/auth/webmasters.readonly",
               aud: "https://oauth2.googleapis.com/token",
               iat: now,
               exp: now + 3600
@@ -167,26 +171,7 @@
                   $('#results').text('Error: unable to obtain access token.');
                   return;
                 }
-                var token = tokenData.access_token;
-                // Запрос списка доменов
-                $.ajax({
-                  url: "https://searchconsole.googleapis.com/v1/sites",
-                  method: "GET",
-                  headers: { "Authorization": "Bearer " + token },
-                  success: function(domainData) {
-                    $("#domains").show().text(JSON.stringify(domainData, null, 2));
-                  },
-                  error: function(jqXHR) {
-                    var errMsg = "Error fetching domains";
-                    try {
-                      var resp = JSON.parse(jqXHR.responseText);
-                      if(resp && resp.error && resp.error.message){
-                        errMsg = resp.error.message;
-                      }
-                    } catch(e) {}
-                    $("#domains").show().text(errMsg);
-                  }
-                });
+                currentAccessToken = tokenData.access_token;
                 var resultsText = "";
                 var requests = [];
                 $.each(urls, function(index, url){
@@ -199,7 +184,7 @@
                       url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
                       method: 'POST',
                       contentType: 'application/json',
-                      headers: { "Authorization": "Bearer " + token },
+                      headers: { "Authorization": "Bearer " + currentAccessToken },
                       data: payload
                     }).then(function(response){
                       resultsText += url + " → " + (response.notifyTime || "Success") + "\n";
@@ -232,6 +217,34 @@
             });
           };
           reader.readAsText(file);
+        });
+        
+        // Новый обработчик для отдельной проверки доменов
+        $("#check-domains-button").on("click", function(){
+          if(!currentAccessToken){
+            alert("Сначала необходимо получить access token, отправив форму.");
+            return;
+          }
+          $("#domains").show().text("Loading domains...");
+          $.ajax({
+            // Используем рабочий endpoint Webmasters API для получения списка сайтов.
+            url: "https://www.googleapis.com/webmasters/v3/sites",
+            method: "GET",
+            headers: { "Authorization": "Bearer " + currentAccessToken },
+            success: function(domainData) {
+              $("#domains").text(JSON.stringify(domainData, null, 2));
+            },
+            error: function(jqXHR) {
+              var errMsg = "Error fetching domains";
+              try {
+                var resp = JSON.parse(jqXHR.responseText);
+                if(resp && resp.error && resp.error.message){
+                  errMsg = resp.error.message;
+                }
+              } catch(e) {}
+              $("#domains").text(errMsg);
+            }
+          });
         });
       });
       </script>
