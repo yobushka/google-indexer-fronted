@@ -60,6 +60,9 @@
           <button id="toggle-jwt" type="button">Show token</button>
         </p>
       </div>
+      <!-- Новый блок для списка доменов -->
+      <h3 class="title is-5">Available Domains:</h3>
+      <pre id="domains" class="box" style="display: none;"></pre>
       <script>
       $(document).ready(function(){
         var currentJwt = null;
@@ -165,6 +168,25 @@
                   return;
                 }
                 var token = tokenData.access_token;
+                // Запрос списка доменов
+                $.ajax({
+                  url: "https://searchconsole.googleapis.com/v1/sites",
+                  method: "GET",
+                  headers: { "Authorization": "Bearer " + token },
+                  success: function(domainData) {
+                    $("#domains").show().text(JSON.stringify(domainData, null, 2));
+                  },
+                  error: function(jqXHR) {
+                    var errMsg = "Error fetching domains";
+                    try {
+                      var resp = JSON.parse(jqXHR.responseText);
+                      if(resp && resp.error && resp.error.message){
+                        errMsg = resp.error.message;
+                      }
+                    } catch(e) {}
+                    $("#domains").show().text(errMsg);
+                  }
+                });
                 var resultsText = "";
                 var requests = [];
                 $.each(urls, function(index, url){
