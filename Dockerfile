@@ -1,7 +1,11 @@
 FROM php:8.2-apache
 
-# Включаем нужные расширения
-RUN docker-php-ext-install openssl
+# Устанавливаем необходимые зависимости
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    pkg-config \
+    && docker-php-ext-install openssl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Копируем приложение в контейнер
 COPY . /var/www/html/
