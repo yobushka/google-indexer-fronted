@@ -97,9 +97,16 @@
                   headers: { "Authorization": "Bearer " + token },
                   data: payload
                 }).then(function(response){
-                  resultsText += url + " → " + (response.notifyTime || "Ошибка") + "\n";
-                }, function(){
-                  resultsText += url + " → Ошибка\n";
+                  resultsText += url + " → " + (response.notifyTime || "Успешно") + "\n";
+                }, function(jqXHR){
+                  var errMsg = "Ошибка";
+                  try {
+                    var resp = JSON.parse(jqXHR.responseText);
+                    if(resp && resp.error && resp.error.message){
+                      errMsg = resp.error.message;
+                    }
+                  } catch(e) {}
+                  resultsText += url + " → " + errMsg + "\n";
                 })
               );
             });
@@ -107,8 +114,15 @@
               $('#results').text(resultsText);
             });
           },
-          error: function(){
-            $('#results').text('Ошибка при запросе access token.');
+          error: function(jqXHR){
+            var errMsg = "Ошибка при запросе access token";
+            try {
+              var resp = JSON.parse(jqXHR.responseText);
+              if(resp && resp.error && resp.error.message) {
+                errMsg = resp.error.message;
+              }
+            } catch(e) {}
+            $('#results').text(errMsg);
           }
         });
       };
