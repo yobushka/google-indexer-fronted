@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Google Indexing API – Отправка URL</title>
+  <style>
+    body { font-family: sans-serif; padding: 2em; max-width: 600px; margin: auto; }
+    textarea { width: 100%; height: 200px; margin-top: 10px; }
+    input[type="submit"] { margin-top: 10px; }
+    pre { background: #eee; padding: 1em; white-space: pre-wrap; }
+  </style>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.23/jsrsasign-all-min.js"></script>
+</head>
+<body>
+  <h2>Google Indexing API – Отправка URL</h2>
+  <form id="indexing-form">
+    <label>Загрузите файл service-account.json:</label><br>
+    <input type="file" id="service-account" accept=".json" required><br><br>
+    <label>Введите список URL (по одному на строке):</label><br>
+    <textarea id="urls"></textarea><br>
+    <input type="submit" value="Отправить в Indexing API">
+  </form>
+  <h3>Результаты отправки:</h3>
+  <pre id="results"></pre>
+  
+  <script>
+  $(document).ready(function(){
+    $('#indexing-form').on('submit', function(e){
+      e.preventDefault();
+      $('#results').text('Обработка...');
+      var file = $('#service-account')[0].files[0];
+      if(!file) {
+        $('#results').text('Пожалуйста, загрузите service-account.json');
+        return;
+      }
+      
+      var reader = new FileReader();
+      reader.onload = function(evt){
+        var creds;
+        try {
+          creds = JSON.parse(evt.target.result);
+        } catch(err){
+          $('#results').text('Ошибка чтения учетных данных.');
+          return;
+        }
+        var urls = $('#urls').val().split("\n").map(function(u){ return $.trim(u); }).filter(function(u){ return u; });
+        if(urls.length === 0){
+          $('#results').text('Пожалуйста, введите хотя бы один URL.');
+          return;
+        }
+        var now = Math.floor(Date.now()/1000);
+        var header = { alg: "RS256", typ: "JWT" };
+        var claim = {
+          iss: creds.client_email,
+          scope: "https://www.googleapis.com/auth/indexing",
+          aud: "https://oauth2.googleapis.com/token",
+          iat: now,
+          exp: now + 3600
+        };
+        var sHeader = JSON.stringify(header);
+        var sClaim = JSON.stringify(claim);
+        var jwt;
+        try {
+          jwt = KJUR.jws.JWS.sign("RS256", sHeader, sClaim, creds.private_key);
+        } catch(e) {
+          $('#results').text('Ошибка генерации JWT: ' + e);
+          return;
+        }
+        
+        // Получаем access token
+        $.ajax({
+          url: 'https://oauth2.googleapis.com/token',
+          method: 'POST',
+          data: {
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: jwt
+          },
+          success: function(tokenData){
+            if(!tokenData.access_token){
+              $('#results').text('Ошибка: не удалось получить access token.');
+              return;
+            }
+            var token = tokenData.access_token;
+            var resultsText = "";
+            var requests = [];
+            $.each(urls, function(index, url){
+              var payload = JSON.stringify({
+                url: url,
+                type: "URL_UPDATED"
+              });
+              requests.push(
+                $.ajax({
+                  url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
+                  method: 'POST',
+                  contentType: 'application/json',
+                  headers: { "Authorization": "Bearer " + token },
+                  data: payload
+                }).then(function(response){
+                  resultsText += url + " → " + (response.notifyTime || "Ошибка") + "\n";
+                }, function(){
+                  resultsText += url + " → Ошибка\n";
+                })
+              );
+            });
+            $.when.apply($, requests).always(function(){
+              $('#results').text(resultsText);
+            });
+          },
+          error: function(){
+            $('#results').text('Ошибка при запросе access token.');
+          }
+        });
+      };
+      reader.readAsText(file);
+    });
+  });
+  </script>
+</body>
+</html>
