@@ -7,9 +7,6 @@ RUN apt-get update && apt-get install -y \
     autoconf \
     build-essential \
     libtool \
-    && docker-php-source extract \
-    && docker-php-ext-install openssl \
-    && docker-php-source delete \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Копируем приложение в контейнер
