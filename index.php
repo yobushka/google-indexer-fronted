@@ -1,24 +1,15 @@
 <?php
 
-// Получаем путь до JSON из переменной окружения
-$serviceAccountFile = getenv('GOOGLE_SERVICE_ACCOUNT_PATH') ?: __DIR__ . '/service-account.json';
-
-// Проверяем наличие файла
-if (!file_exists($serviceAccountFile)) {
-    die("Файл service account не найден: $serviceAccountFile\n");
-}
-
-// Остальной код без изменений...
-// Скрипт из предыдущего сообщения — index.php (веб-форма)
-
+// Функция для кодирования в base64 URL
 function base64UrlEncode($data) {
     return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
 }
 
 // Если форма отправлена
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['urls'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['urls']) && !empty($_FILES['service_account']['tmp_name'])) {
     $urls = array_filter(array_map('trim', explode("\n", $_POST['urls'])));
-    $creds = json_decode(file_get_contents($serviceAccountFile), true);
+    $serviceAccountFileContent = file_get_contents($_FILES['service_account']['tmp_name']);
+    $creds = json_decode($serviceAccountFileContent, true);
 
     function getAccessToken($creds) {
         $now = time();
@@ -102,7 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['urls'])) {
 </head>
 <body>
   <h2>Google Indexing API – Отправка URL</h2>
-  <form method="POST">
+  <form method="POST" enctype="multipart/form-data">
+    <label>Загрузите файл service-account.json:</label><br>
+    <input type="file" name="service_account" accept=".json" required><br><br>
     <label>Введите список URL (по одному на строке):</label><br>
     <textarea name="urls"><?php echo htmlspecialchars($_POST['urls'] ?? ''); ?></textarea><br>
     <input type="submit" value="Отправить в Indexing API">
