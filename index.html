@@ -52,8 +52,32 @@
       </form>
       <h3 class="title is-5">Submission Results:</h3>
       <pre id="results" class="box" style="display: none;"></pre>
+      <!-- Новый блок для JWT токена -->
+      <div id="jwt-container" style="display: none; margin-top: 1em;">
+        <p>
+          JWT Token:
+          <span id="jwt-token">**********</span>
+          <button id="toggle-jwt" type="button">Show token</button>
+        </p>
+      </div>
       <script>
       $(document).ready(function(){
+        var currentJwt = null;
+        
+        // Обработчик переключения отображения JWT токена
+        $("#toggle-jwt").on("click", function(){
+          var $tokenElem = $("#jwt-token");
+          if($tokenElem.data("shown")){
+            $tokenElem.text("**********");
+            $tokenElem.data("shown", false);
+            $(this).text("Show token");
+          } else {
+            $tokenElem.text(currentJwt);
+            $tokenElem.data("shown", true);
+            $(this).text("Hide token");
+          }
+        });
+        
         // Validate service-account file on selection
         $("#service-account").on('change', function() {
           var file = this.files[0];
@@ -121,6 +145,11 @@
               $('#results').text('JWT generation error: ' + e);
               return;
             }
+            // Сохранение и отображение JWT токена (по умолчанию скрытого)
+            currentJwt = jwt;
+            $("#jwt-token").text("**********").data("shown", false);
+            $("#toggle-jwt").text("Show token");
+            $("#jwt-container").show();
             
             // Fetch access token
             $.ajax({
